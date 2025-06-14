@@ -7,6 +7,18 @@ from datetime import datetime
 import glob
 import uuid
 
+print("🔍 Current working directory:", os.getcwd())
+print("📂 Files in current directory:", os.listdir())
+print("📂 Files in 'static' directory:", os.listdir('static'))
+print("📂 Files in 'templates' directory:", os.listdir('templates'))
+
+if not os.path.isfile('best.pt'):
+    print("❌ best.pt NOT FOUND!")
+else:
+    print("✅ best.pt FOUND!")
+# 🔍 Debug code ends here
+
+
 app = Flask(__name__)
 
 model = YOLO('best.pt')
