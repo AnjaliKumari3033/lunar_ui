@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Lunar Feature Detection</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body id =webpage>
+    <h1 id = heading >Lunar Crater & Boulder Detector</h1>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <input id ="image" type="file" name="image" accept="image/*" required>
+        <br/>
+        <input id ="click" type="submit" value="Upload and Detect">
+    </form>
+    <footer> Powered by Selene Sighter 🚀</footer>
+</body>
+</html>

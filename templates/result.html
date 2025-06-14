@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Detection Result</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body id = result>
+    <h1>Detection Completed !!</h1>
+    <p>Here is your result image with detected features:</p>
+    <img src="{{ result_image }}" alt="Detected Image" width="500">
+    <br/>
+    <a href="{{ result_image }}" download="result_image.jpg">Download Image</a>
+    <br/>
+    <a href="/">Try Another Image</a>
+
+</body>
+</html>
