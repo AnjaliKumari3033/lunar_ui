@@ -35,22 +35,27 @@ def upload():
     # Run YOLO model and force output into 'runs/detect'
     results = model.predict(img_path, save=True, project='runs', name='detect')
 
-
     if not os.path.exists(detect_dir):
         return "Error: Detection output not found.", 500
+    
+    subdirs = [os.path.join(detect_dir, d) for d in os.listdir(detect_dir) if os.path.isdir(os.path.join(detect_dir, d))]
 
+    if not subdirs:
+        return "Error: No detection output found.", 500
+
+    latest_dir = max(subdirs, key=os.path.getmtime)
     # Find the first detected image (jpg or png)
-    detected_img_name = next((f for f in os.listdir(detect_dir) if f.endswith(('.jpg', '.png'))), None)
+    detected_img_name = next((f for f in os.listdir(latest_dir) if f.endswith(('.jpg', '.png'))), None)
 
     if not detected_img_name:
         return "Error: No image found in YOLO output folder."
 
-    detected_img_path = os.path.join(detect_dir, detected_img_name)
+    detected_img_path = os.path.join(latest_dir, detected_img_name)
     final_path = os.path.join('static', 'result_{}.jpg'.format(uuid.uuid4()))
 
     shutil.copyfile(detected_img_path, final_path)
 
     return render_template('result.html', result_image=final_path)
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))  # Get port from Render
+    port = int(os.environ.get('PORT', 10000))  # Get port from Render
     app.run(host='0.0.0.0', port=port)
