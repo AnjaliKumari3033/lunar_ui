@@ -8,6 +8,7 @@ import glob
 import uuid
 
 app = Flask(__name__)
+app.config['DEBUG']=True
 
 model_path = 'best.pt'
 if not os.path.isfile(model_path):
@@ -40,7 +41,7 @@ def upload():
     if img_file.filename == '':
         return "Error: Empty filename.", 400
 
-    # 4. Save uploaded image with unique name to avoid overwrite
+     # 4. Save uploaded image with unique name to avoid overwrite
     unique_filename = f"upload_{uuid.uuid4()}.jpg"
     upload_path = os.path.join(static_dir, unique_filename)
     img_file.save(upload_path)
@@ -66,7 +67,7 @@ def upload():
     detected_img_path = os.path.join(latest_dir, detected_imgs[0])
     final_result_path = os.path.join(static_dir, f"result_{uuid.uuid4()}.jpg")
 
-    shutil.copyfile(detected_img_path, final_result_path)
+     shutil.copyfile(detected_img_path, final_result_path)
 
     os.remove(upload_path)
 
