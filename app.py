@@ -7,21 +7,13 @@ from datetime import datetime
 import glob
 import uuid
 
-print("🔍 Current working directory:", os.getcwd())
-print("📂 Files in current directory:", os.listdir())
-print("📂 Files in 'static' directory:", os.listdir('static'))
-print("📂 Files in 'templates' directory:", os.listdir('templates'))
-
-if not os.path.isfile('best.pt'):
-    print("❌ best.pt NOT FOUND!")
-else:
-    print("✅ best.pt FOUND!")
-# 🔍 Debug code ends here
-
-
 app = Flask(__name__)
 
-model = YOLO('best.pt')
+model_path = 'best.pt'
+if not os.path.isfile(model_path):
+    raise FileNotFoundError("YOLO model file 'best.pt' not found!")
+model = YOLO(model_path)
+
 
 @app.route('/')
 def index():
@@ -30,44 +22,55 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload():
     detect_dir = os.path.join('runs', 'detect')
+    static_dir = 'static'
     
     # Clear old detection results if they exist
     if os.path.exists(detect_dir):
         shutil.rmtree(detect_dir)
 
+     # ✅ 2. Clean old result images from /static
+    for filename in os.listdir(static_dir):
+        if filename.startswith('result_'):
+            os.remove(os.path.join(static_dir, filename))
+
     if 'image' not in request.files:
         return "No file uploaded", 400
 
     img_file = request.files['image']
+    if img_file.filename == '':
+        return "Error: Empty filename.", 400
 
-    # Save the uploaded image temporarily
-    img_path = os.path.join('static', img_file.filename)
-    img_file.save(img_path)
+    # 4. Save uploaded image with unique name to avoid overwrite
+    unique_filename = f"upload_{uuid.uuid4()}.jpg"
+    upload_path = os.path.join(static_dir, unique_filename)
+    img_file.save(upload_path)
 
     # Run YOLO model and force output into 'runs/detect'
-    results = model.predict(img_path, save=True, project='runs', name='detect')
+    results = model.predict(upload_path, save=True, project='runs', name='detect')
 
     if not os.path.exists(detect_dir):
         return "Error: Detection output not found.", 500
     
-    subdirs = [os.path.join(detect_dir, d) for d in os.listdir(detect_dir) if os.path.isdir(os.path.join(detect_dir, d))]
+    detect_subdirs = [os.path.join(detect_dir, d) for d in os.listdir(detect_dir) if os.path.isdir(os.path.join(detect_dir, d))]
 
-    if not subdirs:
+    if not detect_subdirs:
         return "Error: No detection output found.", 500
 
-    latest_dir = max(subdirs, key=os.path.getmtime)
+    latest_dir = max(detect_subdirs, key=os.path.getmtime)
     # Find the first detected image (jpg or png)
-    detected_img_name = next((f for f in os.listdir(latest_dir) if f.endswith(('.jpg', '.png'))), None)
+    detected_imgs = [f for f in os.listdir(latest_dir) if f.lower().endswith(('.jpg', '.png'))]
 
-    if not detected_img_name:
-        return "Error: No image found in YOLO output folder."
+    if not detected_imgs:
+        return "Error: YOLO did not produce any image output .", 500
 
-    detected_img_path = os.path.join(latest_dir, detected_img_name)
-    final_path = os.path.join('static', 'result_{}.jpg'.format(uuid.uuid4()))
+    detected_img_path = os.path.join(latest_dir, detected_imgs[0])
+    final_result_path = os.path.join(static_dir, f"result_{uuid.uuid4()}.jpg")
 
-    shutil.copyfile(detected_img_path, final_path)
+    shutil.copyfile(detected_img_path, final_result_path)
 
-    return render_template('result.html', result_image=final_path)
+    os.remove(upload_path)
+
+    return render_template('result.html', result_image=final_result_path)
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))  # Get port from Render
     app.run(host='0.0.0.0', port=port)
