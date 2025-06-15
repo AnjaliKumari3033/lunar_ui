@@ -3,6 +3,7 @@ from PIL import Image
 from ultralytics import YOLO
 import os
 import shutil
+import cv2
 from datetime import datetime
 import glob
 import uuid
@@ -10,12 +11,16 @@ import uuid
 app = Flask(__name__)
 app.config['DEBUG']=True
 
-RESULT_FOLDER = 'static/results'
-if not os.path.exists(RESULT_FOLDER):
-    os.makedirs(RESULT_FOLDER)
+UPLOAD_FOLDER = 'static/uploads'
+DETECT_FOLDER = 'static/detections'
 
-# Load YOLOv8 model (only once)
-model = YOLO('best.pt')
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['DETECT_FOLDER'] = DETECT_FOLDER
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(DETECT_FOLDER, exist_ok=True)
+
+model = YOLO('best.pt')  # Model loaded here (cold start)
 
 @app.route('/')
 def index():
@@ -24,32 +29,21 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload():
     if 'file' not in request.files:
-        return 'No file part in the request'
-    
+        return 'No file part in the request.'
     file = request.files['file']
-    
     if file.filename == '':
-        return 'No selected file'
-    
-    if file:
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(RESULT_FOLDER, filename)
-        file.save(file_path)
+        return 'No file selected.'
 
-        # Run YOLO model on the saved file
-        results = model(file_path)
-        
-        # Save the result image as result.jpg (overwrite each time)
-        results[0].save(filename=os.path.join(RESULT_FOLDER, 'result.jpg'))
+    filename = datetime.now().strftime("%Y%m%d%H%M%S") + '_' + file.filename
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
 
-        # Redirect to result page
-        return redirect(url_for('result'))
+    results = model.predict(filepath)
+    for result in results:
+        im_array = result.plot()
+        output_path = os.path.join(app.config['DETECT_FOLDER'], 'result_' + filename)
+        cv2.imwrite(output_path, im_array)
 
-@app.route('/result')
-def result():
-    result_path = os.path.join(RESULT_FOLDER, 'result.jpg')
-    return render_template('result.html', result_image=result_path)
+    return render_template('result.html', result_image='/' + output_path)
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port)
+# NO app.run() here — Gunicorn will run the app
