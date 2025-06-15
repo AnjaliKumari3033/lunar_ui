@@ -10,66 +10,63 @@ import uuid
 app = Flask(__name__)
 app.config['DEBUG']=True
 
-model_path = 'best.pt'
-if not os.path.isfile(model_path):
-    raise FileNotFoundError("YOLO model file 'best.pt' not found!")
-model = YOLO(model_path)
+model = YOLO('best.pt')  # Replace 'best.pt' with your actual model path if needed
 
+# Configure upload folder
+UPLOAD_FOLDER = 'static/uploads'
+RESULT_FOLDER = 'static/results'
+
+# Ensure folders exist
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(RESULT_FOLDER, exist_ok=True)
+
+# Home page route
 @app.route('/')
 def index():
     return render_template('index.html')
 
-@app.route('/upload', methods=['POST'])
-def upload():
-    detect_dir = os.path.join('runs', 'detect')
-    static_dir = 'static'
-    
-    # ✅ 1. Clear old detection results (clean up YOLO output)
-    if os.path.exists(detect_dir):
-        shutil.rmtree(detect_dir)
-
-    # ✅ 2. Clean old result and upload images from static
-    for filename in os.listdir(static_dir):
-        if filename.startswith('result_') or filename.startswith('upload_'):
-            os.remove(os.path.join(static_dir, filename))
-
+# Image upload and processing route
+@app.route('/predict', methods=['POST'])
+def predict():
     if 'image' not in request.files:
-        return "No file uploaded", 400
+        return "No file part in the request."
 
-    img_file = request.files['image']
-    if img_file.filename == '':
-        return "Error: Empty filename.", 400
+    file = request.files['image']
+    if file.filename == '':
+        return "No file selected."
 
-    # ✅ 3. Save uploaded image with a unique name
-    unique_filename = f"upload_{uuid.uuid4()}.jpg"
-    upload_path = os.path.join(static_dir, unique_filename)
-    img_file.save(upload_path)
+    # Generate unique folder for this request
+    request_id = str(uuid.uuid4())
+    request_upload_folder = os.path.join(UPLOAD_FOLDER, request_id)
+    request_result_folder = os.path.join(RESULT_FOLDER, request_id)
 
-    # ✅ 4. Run YOLO model
-    results = model.predict(upload_path, save=True, project='runs', name='detect', exist_ok=True)
+    os.makedirs(request_upload_folder, exist_ok=True)
+    os.makedirs(request_result_folder, exist_ok=True)
 
-    # ✅ 5. Locate the latest YOLO output folder
-    if not os.path.exists(detect_dir):
-        return "Error: Detection output not found.", 500
+    # Save original image
+    img_path = os.path.join(request_upload_folder, file.filename)
+    file.save(img_path)
 
-    detect_subdirs = [os.path.join(detect_dir, d) for d in os.listdir(detect_dir) if os.path.isdir(os.path.join(detect_dir, d))]
-    if not detect_subdirs:
-         return "Error: No detection output found.", 500
+    # Run YOLO inference
+    results = model(img_path)
 
-    latest_dir = max(detect_subdirs, key=os.path.getmtime)
-    detected_imgs = [f for f in os.listdir(latest_dir) if f.lower().endswith(('.jpg', '.png'))]
-    if not detected_imgs:
-        return "Error: YOLO did not produce any image output.", 500
+    # Save result image to result folder
+    for r in results:
+        im_array = r.plot()  # Plot result with boxes
+        im = Image.fromarray(im_array[..., ::-1])  # Convert BGR to RGB
+        result_img_path = os.path.join(request_result_folder, 'result.jpg')
+        im.save(result_img_path)
 
-    # ✅ 6. Copy YOLO result image to static/ with unique name
-    detected_img_path = os.path.join(latest_dir, detected_imgs[0])
-    final_result_path = os.path.join(static_dir, f"result_{uuid.uuid4()}.jpg")
-    shutil.copyfile(detected_img_path, final_result_path)
+    # After processing, cleanup uploaded image folder (optional: keep if you want)
+    shutil.rmtree(request_upload_folder)
+     # Show result
+    result_img_rel_path = os.path.join(request_result_folder, 'result.jpg')
+    return render_template('result.html', result_image=result_img_rel_path)
 
-    # ✅ 7. Remove uploaded image to free space
-    os.remove(upload_path)
-
-    return render_template('result.html', result_image=final_result_path)
+# To serve result images
+@app.route('/static/results/<path:filename>')
+def result_file(filename):
+    return send_from_directory('static/results', filename)
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
