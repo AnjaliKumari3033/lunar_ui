@@ -38,7 +38,9 @@ def upload():
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     file.save(filepath)
 
-    results = model.predict(filepath)
+     # Permanent fix: STREAMING prediction to avoid Render timeout/memory crash
+    results = model.predict(filepath, stream=True)
+
     for result in results:
         im_array = result.plot()
         output_path = os.path.join(app.config['DETECT_FOLDER'], 'result_' + filename)
@@ -46,4 +48,4 @@ def upload():
 
     return render_template('result.html', result_image='/' + output_path)
 
-# NO app.run() here — Gunicorn will run the app
+# No app.run() for Render/Gunicorn
